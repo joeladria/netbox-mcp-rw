@@ -30,9 +30,10 @@ Unlike existing read-only NetBox MCP implementations, this server provides compr
 
 **DCIM (Device and Infrastructure):**
 - devices, device-types, device-roles, manufacturers
-- sites, locations, racks, rack-roles
-- cables, interfaces, power-ports, console-ports
-- platforms, regions, virtual-chassis
+- sites, locations, racks, rack-groups, rack-roles
+- cables, cable-bundles, interfaces, mac-addresses
+- power-ports, console-ports, platforms, regions
+- virtual-chassis, virtual-device-contexts
 
 **IPAM (IP Address Management):**
 - ip-addresses, prefixes, vlans, vrfs
@@ -41,11 +42,24 @@ Unlike existing read-only NetBox MCP implementations, this server provides compr
 
 **Circuits:**
 - circuits, circuit-types, providers
-- circuit-terminations, provider-networks
+- circuit-groups, circuit-terminations, provider-accounts
+- provider-networks, virtual-circuits
 
 **Virtualization:**
 - virtual-machines, clusters, cluster-groups
-- cluster-types, vm-interfaces
+- cluster-types, virtual-disks, virtual-machine-types, vm-interfaces
+
+**Tenancy:**
+- tenants, tenant-groups, contacts, contact-groups
+- contact-roles, contact-assignments
+
+**VPN & Wireless:**
+- tunnels, tunnel-groups, tunnel-terminations
+- l2vpns, l2vpn-terminations, wireless-lans, wireless-links
+
+**Customization & Operations:**
+- custom-fields, custom-field-choice-sets, config-contexts
+- config-context-profiles, event-rules, tags, webhooks, jobs
 
 **And many more...**
 

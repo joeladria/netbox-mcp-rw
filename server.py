@@ -6,6 +6,7 @@ import os
 NETBOX_OBJECT_TYPES = {
     # DCIM (Device and Infrastructure)
     "cables": "dcim/cables",
+    "cable-bundles": "dcim/cable-bundles",
     "console-ports": "dcim/console-ports", 
     "console-server-ports": "dcim/console-server-ports",
     "devices": "dcim/devices",
@@ -16,6 +17,7 @@ NETBOX_OBJECT_TYPES = {
     "interfaces": "dcim/interfaces",
     "inventory-items": "dcim/inventory-items",
     "locations": "dcim/locations",
+    "mac-addresses": "dcim/mac-addresses",
     "manufacturers": "dcim/manufacturers",
     "modules": "dcim/modules",
     "module-bays": "dcim/module-bays",
@@ -26,12 +28,14 @@ NETBOX_OBJECT_TYPES = {
     "power-panels": "dcim/power-panels",
     "power-ports": "dcim/power-ports",
     "racks": "dcim/racks",
+    "rack-groups": "dcim/rack-groups",
     "rack-reservations": "dcim/rack-reservations",
     "rack-roles": "dcim/rack-roles",
     "regions": "dcim/regions",
     "sites": "dcim/sites",
     "site-groups": "dcim/site-groups",
     "virtual-chassis": "dcim/virtual-chassis",
+    "virtual-device-contexts": "dcim/virtual-device-contexts",
     
     # IPAM (IP Address Management)
     "asns": "ipam/asns",
@@ -51,16 +55,21 @@ NETBOX_OBJECT_TYPES = {
     
     # Circuits
     "circuits": "circuits/circuits",
+    "circuit-groups": "circuits/circuit-groups",
     "circuit-types": "circuits/circuit-types",
     "circuit-terminations": "circuits/circuit-terminations",
     "providers": "circuits/providers",
+    "provider-accounts": "circuits/provider-accounts",
     "provider-networks": "circuits/provider-networks",
+    "virtual-circuits": "circuits/virtual-circuits",
     
     # Virtualization
     "clusters": "virtualization/clusters",
     "cluster-groups": "virtualization/cluster-groups",
     "cluster-types": "virtualization/cluster-types",
+    "virtual-disks": "virtualization/virtual-disks",
     "virtual-machines": "virtualization/virtual-machines",
+    "virtual-machine-types": "virtualization/virtual-machine-types",
     "vm-interfaces": "virtualization/interfaces",
     
     # Tenancy
@@ -69,6 +78,7 @@ NETBOX_OBJECT_TYPES = {
     "contacts": "tenancy/contacts",
     "contact-groups": "tenancy/contact-groups",
     "contact-roles": "tenancy/contact-roles",
+    "contact-assignments": "tenancy/contact-assignments",
     
     # VPN
     "ike-policies": "vpn/ike-policies",
@@ -77,8 +87,10 @@ NETBOX_OBJECT_TYPES = {
     "ipsec-profiles": "vpn/ipsec-profiles",
     "ipsec-proposals": "vpn/ipsec-proposals",
     "l2vpns": "vpn/l2vpns",
+    "l2vpn-terminations": "vpn/l2vpn-terminations",
     "tunnels": "vpn/tunnels",
     "tunnel-groups": "vpn/tunnel-groups",
+    "tunnel-terminations": "vpn/tunnel-terminations",
     
     # Wireless
     "wireless-lans": "wireless/wireless-lans",
@@ -87,10 +99,13 @@ NETBOX_OBJECT_TYPES = {
 
     # Extras
     "config-contexts": "extras/config-contexts",
+    "config-context-profiles": "extras/config-context-profiles",
     "custom-fields": "extras/custom-fields",
+    "custom-field-choice-sets": "extras/custom-field-choice-sets",
+    "event-rules": "extras/event-rules",
     "export-templates": "extras/export-templates",
     "image-attachments": "extras/image-attachments",
-    "jobs": "extras/jobs",
+    "jobs": "core/jobs",
     "saved-filters": "extras/saved-filters",
     "scripts": "extras/scripts",
     "tags": "extras/tags",
