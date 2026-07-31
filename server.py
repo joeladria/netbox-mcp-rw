@@ -115,8 +115,63 @@ NETBOX_OBJECT_TYPES = {
 mcp = FastMCP("NetBox", log_level="DEBUG")
 netbox = None
 
+GLOBAL_OBJECT_TYPES = {
+    "config-contexts",
+    "config-context-profiles",
+    "custom-fields",
+    "custom-field-choice-sets",
+    "event-rules",
+    "export-templates",
+    "jobs",
+    "saved-filters",
+    "scripts",
+    "tags",
+    "webhooks",
+}
+
+
+def _allow_main_commit() -> bool:
+    return os.getenv("NETBOX_ALLOW_MAIN_COMMIT", "").lower() in {"1", "true", "yes", "on"}
+
+
+def _validate_object_type(object_type: str) -> str:
+    if object_type not in NETBOX_OBJECT_TYPES:
+        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
+        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
+    return NETBOX_OBJECT_TYPES[object_type]
+
+
+def _branch_headers(branch_schema_id: str | None) -> dict | None:
+    if branch_schema_id:
+        return {"X-NetBox-Branch": branch_schema_id}
+    return None
+
+
+def _write_headers(object_type: str, branch_schema_id: str | None) -> dict | None:
+    if object_type in GLOBAL_OBJECT_TYPES:
+        if branch_schema_id:
+            raise ValueError(
+                f"{object_type} is not branch-isolated in NetBox Branching. "
+                "Omit branch_schema_id and set NETBOX_ALLOW_MAIN_COMMIT=true to write it globally."
+            )
+        if _allow_main_commit():
+            return None
+        raise ValueError(
+            f"{object_type} is a global/non-branchable NetBox model. "
+            "Set NETBOX_ALLOW_MAIN_COMMIT=true to allow this main/global write."
+        )
+
+    if branch_schema_id:
+        return _branch_headers(branch_schema_id)
+    if _allow_main_commit():
+        return None
+    raise ValueError(
+        "Writes to branchable NetBox models require branch_schema_id. "
+        "Set NETBOX_ALLOW_MAIN_COMMIT=true only if this write should commit directly to main."
+    )
+
 @mcp.tool()
-def netbox_get_objects(object_type: str, filters: dict):
+def netbox_get_objects(object_type: str, filters: dict, branch_schema_id: str | None = None):
     """
     Get objects from NetBox based on their type and filters
     Args:
@@ -208,19 +263,13 @@ def netbox_get_objects(object_type: str, filters: dict):
     
     See NetBox API documentation for filtering options for each object type.
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
+    endpoint = _validate_object_type(object_type)
         
     # Make API call
-    return netbox.get(endpoint, params=filters)
+    return netbox.get(endpoint, params=filters, headers=_branch_headers(branch_schema_id))
 
 @mcp.tool()
-def netbox_get_object_by_id(object_type: str, object_id: int):
+def netbox_get_object_by_id(object_type: str, object_id: int, branch_schema_id: str | None = None):
     """
     Get detailed information about a specific NetBox object by its ID.
     
@@ -231,15 +280,9 @@ def netbox_get_object_by_id(object_type: str, object_id: int):
     Returns:
         Complete object details
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = f"{NETBOX_OBJECT_TYPES[object_type]}/{object_id}"
+    endpoint = _validate_object_type(object_type)
     
-    return netbox.get(endpoint)
+    return netbox.get(endpoint, id=object_id, headers=_branch_headers(branch_schema_id))
 
 @mcp.tool()
 def netbox_get_changelogs(filters: dict):
@@ -291,7 +334,7 @@ def netbox_get_changelogs(filters: dict):
     return netbox.get(endpoint, params=filters)
 
 @mcp.tool()
-def netbox_create_object(object_type: str, data: dict):
+def netbox_create_object(object_type: str, data: dict, branch_schema_id: str | None = None):
     """
     Create a new object in NetBox.
     
@@ -319,19 +362,13 @@ def netbox_create_object(object_type: str, data: dict):
         "status": "active"
     })
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
+    endpoint = _validate_object_type(object_type)
         
     # Make API call
-    return netbox.create(endpoint, data)
+    return netbox.create(endpoint, data, headers=_write_headers(object_type, branch_schema_id))
 
 @mcp.tool()
-def netbox_update_object(object_type: str, object_id: int, data: dict):
+def netbox_update_object(object_type: str, object_id: int, data: dict, branch_schema_id: str | None = None):
     """
     Update an existing object in NetBox.
     
@@ -350,19 +387,13 @@ def netbox_update_object(object_type: str, object_id: int, data: dict):
     To change a device's status:
     netbox_update_object("devices", 5, {"status": "offline"})
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
+    endpoint = _validate_object_type(object_type)
         
     # Make API call
-    return netbox.update(endpoint, object_id, data)
+    return netbox.update(endpoint, object_id, data, headers=_write_headers(object_type, branch_schema_id))
 
 @mcp.tool()
-def netbox_delete_object(object_type: str, object_id: int):
+def netbox_delete_object(object_type: str, object_id: int, branch_schema_id: str | None = None):
     """
     Delete an object from NetBox.
     
@@ -382,16 +413,10 @@ def netbox_delete_object(object_type: str, object_id: int):
     To delete an IP address:
     netbox_delete_object("ip-addresses", 123)
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
+    endpoint = _validate_object_type(object_type)
         
     # Make API call - this will raise an exception if it fails
-    success = netbox.delete(endpoint, object_id)
+    success = netbox.delete(endpoint, object_id, headers=_write_headers(object_type, branch_schema_id))
     
     if success:
         return {"success": True, "message": f"Successfully deleted {object_type} with ID {object_id}"}
@@ -399,7 +424,7 @@ def netbox_delete_object(object_type: str, object_id: int):
         return {"success": False, "message": f"Failed to delete {object_type} with ID {object_id}"}
 
 @mcp.tool()
-def netbox_bulk_create_objects(object_type: str, data: list):
+def netbox_bulk_create_objects(object_type: str, data: list, branch_schema_id: str | None = None):
     """
     Create multiple objects in NetBox in a single request.
     
@@ -417,19 +442,13 @@ def netbox_bulk_create_objects(object_type: str, data: list):
         {"name": "Site B", "slug": "site-b", "status": "active"}
     ])
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
+    endpoint = _validate_object_type(object_type)
         
     # Make API call
-    return netbox.bulk_create(endpoint, data)
+    return netbox.bulk_create(endpoint, data, headers=_write_headers(object_type, branch_schema_id))
 
 @mcp.tool()
-def netbox_bulk_update_objects(object_type: str, data: list):
+def netbox_bulk_update_objects(object_type: str, data: list, branch_schema_id: str | None = None):
     """
     Update multiple objects in NetBox in a single request.
     
@@ -447,19 +466,13 @@ def netbox_bulk_update_objects(object_type: str, data: list):
         {"id": 2, "status": "maintenance"}
     ])
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
+    endpoint = _validate_object_type(object_type)
         
     # Make API call
-    return netbox.bulk_update(endpoint, data)
+    return netbox.bulk_update(endpoint, data, headers=_write_headers(object_type, branch_schema_id))
 
 @mcp.tool()
-def netbox_bulk_delete_objects(object_type: str, object_ids: list):
+def netbox_bulk_delete_objects(object_type: str, object_ids: list, branch_schema_id: str | None = None):
     """
     Delete multiple objects from NetBox in a single request.
     
@@ -476,21 +489,102 @@ def netbox_bulk_delete_objects(object_type: str, object_ids: list):
     To delete multiple devices:
     netbox_bulk_delete_objects("devices", [5, 6, 7])
     """
-    # Validate object_type exists in mapping
-    if object_type not in NETBOX_OBJECT_TYPES:
-        valid_types = "\n".join(f"- {t}" for t in sorted(NETBOX_OBJECT_TYPES.keys()))
-        raise ValueError(f"Invalid object_type. Must be one of:\n{valid_types}")
-        
-    # Get API endpoint from mapping
-    endpoint = NETBOX_OBJECT_TYPES[object_type]
+    endpoint = _validate_object_type(object_type)
         
     # Make API call
-    success = netbox.bulk_delete(endpoint, object_ids)
+    success = netbox.bulk_delete(endpoint, object_ids, headers=_write_headers(object_type, branch_schema_id))
     
     if success:
         return {"success": True, "message": f"Successfully deleted {len(object_ids)} {object_type} objects"}
     else:
         return {"success": False, "message": f"Failed to delete {object_type} objects"}
+
+
+@mcp.tool()
+def netbox_list_branches(filters: dict):
+    """List NetBox Branching branches."""
+    return netbox.get("plugins/branching/branches", params=filters)
+
+
+@mcp.tool()
+def netbox_get_branch(branch_id: int):
+    """Get a NetBox Branching branch by numeric ID."""
+    return netbox.get("plugins/branching/branches", id=branch_id)
+
+
+@mcp.tool()
+def netbox_create_branch(name: str, description: str = ""):
+    """Create a NetBox Branching branch. Use the returned schema_id for branch-scoped reads and writes."""
+    data = {"name": name}
+    if description:
+        data["description"] = description
+    return netbox.create("plugins/branching/branches", data)
+
+
+@mcp.tool()
+def netbox_get_branch_changes(branch_id: int, filters: dict):
+    """Get ChangeDiff records for a branch."""
+    params = dict(filters or {})
+    params["branch_id"] = branch_id
+    return netbox.get("plugins/branching/changes", params=params)
+
+
+@mcp.tool()
+def netbox_get_branch_events(branch_id: int, filters: dict):
+    """Get branch lifecycle events for a branch."""
+    params = dict(filters or {})
+    params["branch_id"] = branch_id
+    return netbox.get("plugins/branching/branch-events", params=params)
+
+
+@mcp.tool()
+def netbox_get_branchable_models():
+    """Discover models configured as branchable on this NetBox instance."""
+    return netbox.get("plugins/branching/branchable-models")
+
+
+@mcp.tool()
+def netbox_sync_branch(branch_id: int, commit: bool = False, acknowledge_conflicts: bool = False):
+    """Sync main into a branch. Defaults to dry-run with commit=false."""
+    data = {"commit": commit}
+    if acknowledge_conflicts:
+        data["acknowledge_conflicts"] = True
+    return netbox.create(f"plugins/branching/branches/{branch_id}/sync", data)
+
+
+@mcp.tool()
+def netbox_merge_branch(
+    branch_id: int,
+    commit: bool = False,
+    acknowledge_conflicts: bool = False,
+    strategy: str | None = None,
+):
+    """Merge a branch to main. Defaults to dry-run with commit=false."""
+    data = {"commit": commit}
+    if acknowledge_conflicts:
+        data["acknowledge_conflicts"] = True
+    if strategy:
+        data["strategy"] = strategy
+    return netbox.create(f"plugins/branching/branches/{branch_id}/merge", data)
+
+
+@mcp.tool()
+def netbox_revert_branch(branch_id: int, commit: bool = False):
+    """Revert a previously merged branch. Defaults to dry-run with commit=false."""
+    return netbox.create(f"plugins/branching/branches/{branch_id}/revert", {"commit": commit})
+
+
+@mcp.tool()
+def netbox_archive_branch(branch_id: int):
+    """Archive a ready or merged branch."""
+    return netbox.create(f"plugins/branching/branches/{branch_id}/archive", {})
+
+
+@mcp.tool()
+def netbox_delete_branch(branch_id: int):
+    """Delete a branch record and drop its schema."""
+    success = netbox.delete("plugins/branching/branches", branch_id)
+    return {"success": success, "message": f"Deleted branch {branch_id}" if success else f"Failed to delete branch {branch_id}"}
 
 if __name__ == "__main__":
     # Load NetBox configuration from environment variables

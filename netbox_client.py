@@ -19,7 +19,13 @@ class NetBoxClientBase(abc.ABC):
     """
     
     @abc.abstractmethod
-    def get(self, endpoint: str, id: Optional[int] = None, params: Optional[Dict[str, Any]] = None) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    def get(
+        self,
+        endpoint: str,
+        id: Optional[int] = None,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Retrieve one or more objects from NetBox.
         
@@ -34,7 +40,7 @@ class NetBoxClientBase(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def create(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def create(self, endpoint: str, data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Create a new object in NetBox.
         
@@ -48,7 +54,7 @@ class NetBoxClientBase(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def update(self, endpoint: str, id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    def update(self, endpoint: str, id: int, data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Update an existing object in NetBox.
         
@@ -63,7 +69,7 @@ class NetBoxClientBase(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def delete(self, endpoint: str, id: int) -> bool:
+    def delete(self, endpoint: str, id: int, headers: Optional[Dict[str, str]] = None) -> bool:
         """
         Delete an object from NetBox.
         
@@ -77,7 +83,7 @@ class NetBoxClientBase(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def bulk_create(self, endpoint: str, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def bulk_create(self, endpoint: str, data: List[Dict[str, Any]], headers: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
         Create multiple objects in NetBox.
         
@@ -91,7 +97,7 @@ class NetBoxClientBase(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def bulk_update(self, endpoint: str, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def bulk_update(self, endpoint: str, data: List[Dict[str, Any]], headers: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
         Update multiple objects in NetBox.
         
@@ -105,7 +111,7 @@ class NetBoxClientBase(abc.ABC):
         pass
     
     @abc.abstractmethod
-    def bulk_delete(self, endpoint: str, ids: List[int]) -> bool:
+    def bulk_delete(self, endpoint: str, ids: List[int], headers: Optional[Dict[str, str]] = None) -> bool:
         """
         Delete multiple objects from NetBox.
         
@@ -174,7 +180,13 @@ class NetBoxRestClient(NetBoxClientBase):
             return f"{self.api_url}/{endpoint}/{id}/"
         return f"{self.api_url}/{endpoint}/"
     
-    def get(self, endpoint: str, id: Optional[int] = None, params: Optional[Dict[str, Any]] = None) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    def get(
+        self,
+        endpoint: str,
+        id: Optional[int] = None,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
         """
         Retrieve one or more objects from NetBox via the REST API.
         
@@ -190,7 +202,7 @@ class NetBoxRestClient(NetBoxClientBase):
             requests.HTTPError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.get(url, params=params, verify=self.verify_ssl)
+        response = self.session.get(url, params=params, headers=headers, verify=self.verify_ssl)
         response.raise_for_status()
         
         data = response.json()
@@ -199,7 +211,7 @@ class NetBoxRestClient(NetBoxClientBase):
             return data['results']
         return data
     
-    def create(self, endpoint: str, data: Dict[str, Any]) -> Dict[str, Any]:
+    def create(self, endpoint: str, data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Create a new object in NetBox via the REST API.
         
@@ -214,11 +226,11 @@ class NetBoxRestClient(NetBoxClientBase):
             requests.HTTPError: If the request fails
         """
         url = self._build_url(endpoint)
-        response = self.session.post(url, json=data, verify=self.verify_ssl)
+        response = self.session.post(url, json=data, headers=headers, verify=self.verify_ssl)
         response.raise_for_status()
         return response.json()
     
-    def update(self, endpoint: str, id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    def update(self, endpoint: str, id: int, data: Dict[str, Any], headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Update an existing object in NetBox via the REST API.
         
@@ -234,11 +246,11 @@ class NetBoxRestClient(NetBoxClientBase):
             requests.HTTPError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.patch(url, json=data, verify=self.verify_ssl)
+        response = self.session.patch(url, json=data, headers=headers, verify=self.verify_ssl)
         response.raise_for_status()
         return response.json()
     
-    def delete(self, endpoint: str, id: int) -> bool:
+    def delete(self, endpoint: str, id: int, headers: Optional[Dict[str, str]] = None) -> bool:
         """
         Delete an object from NetBox via the REST API.
         
@@ -253,11 +265,11 @@ class NetBoxRestClient(NetBoxClientBase):
             requests.HTTPError: If the request fails
         """
         url = self._build_url(endpoint, id)
-        response = self.session.delete(url, verify=self.verify_ssl)
+        response = self.session.delete(url, headers=headers, verify=self.verify_ssl)
         response.raise_for_status()
         return response.status_code == 204
     
-    def bulk_create(self, endpoint: str, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def bulk_create(self, endpoint: str, data: List[Dict[str, Any]], headers: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
         Create multiple objects in NetBox via the REST API.
         
@@ -272,11 +284,11 @@ class NetBoxRestClient(NetBoxClientBase):
             requests.HTTPError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
-        response = self.session.post(url, json=data, verify=self.verify_ssl)
+        response = self.session.post(url, json=data, headers=headers, verify=self.verify_ssl)
         response.raise_for_status()
         return response.json()
     
-    def bulk_update(self, endpoint: str, data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def bulk_update(self, endpoint: str, data: List[Dict[str, Any]], headers: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
         Update multiple objects in NetBox via the REST API.
         
@@ -291,11 +303,11 @@ class NetBoxRestClient(NetBoxClientBase):
             requests.HTTPError: If the request fails
         """
         url = f"{self._build_url(endpoint)}bulk/"
-        response = self.session.patch(url, json=data, verify=self.verify_ssl)
+        response = self.session.patch(url, json=data, headers=headers, verify=self.verify_ssl)
         response.raise_for_status()
         return response.json()
     
-    def bulk_delete(self, endpoint: str, ids: List[int]) -> bool:
+    def bulk_delete(self, endpoint: str, ids: List[int], headers: Optional[Dict[str, str]] = None) -> bool:
         """
         Delete multiple objects from NetBox via the REST API.
         
@@ -311,6 +323,6 @@ class NetBoxRestClient(NetBoxClientBase):
         """
         url = f"{self._build_url(endpoint)}bulk/"
         data = [{"id": id} for id in ids]
-        response = self.session.delete(url, json=data, verify=self.verify_ssl)
+        response = self.session.delete(url, json=data, headers=headers, verify=self.verify_ssl)
         response.raise_for_status()
         return response.status_code == 204
