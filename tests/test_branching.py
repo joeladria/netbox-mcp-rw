@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import types
@@ -27,7 +28,7 @@ sys.modules.setdefault("mcp.server", server_module)
 sys.modules.setdefault("mcp.server.fastmcp", fastmcp_module)
 
 import server
-from netbox_client import NetBoxRestClient
+from netbox_client import NetBoxAPIError, NetBoxRestClient
 
 
 class BranchWriteGuardTest(unittest.TestCase):
@@ -164,6 +165,88 @@ class NetBoxRestClientHeadersTest(unittest.TestCase):
             verify=True,
         )
         response.raise_for_status.assert_called_once()
+
+
+class NetBoxAPIErrorTest(unittest.TestCase):
+    """Verify 4xx/5xx responses raise NetBoxAPIError with response body details."""
+
+    @staticmethod
+    def _make_response(status_code, reason, url, json_body=None, text_body=None):
+        import requests
+
+        response = requests.Response()
+        response.status_code = status_code
+        response.reason = reason
+        response.url = url
+        if json_body is not None:
+            response._content = json.dumps(json_body).encode("utf-8")
+        elif text_body is not None:
+            response._content = text_body.encode("utf-8")
+        return response
+
+    def setUp(self):
+        self.client = NetBoxRestClient("https://netbox.example.com", "token")
+
+    def test_update_raises_netbox_api_error_with_field_details(self):
+        response = self._make_response(
+            400,
+            "Bad Request",
+            "https://netbox.example.com/api/dcim/devices/6087/",
+            json_body={"primary_ip4": ['Invalid pk "3934" - object does not exist.']},
+        )
+        self.client.session.patch = MagicMock(return_value=response)
+
+        with self.assertRaises(NetBoxAPIError) as ctx:
+            self.client.update("dcim/devices", 6087, {"primary_ip4": 3934})
+
+        err = ctx.exception
+        self.assertEqual(err.status_code, 400)
+        self.assertEqual(
+            err.error_details, {"primary_ip4": ['Invalid pk "3934" - object does not exist.']}
+        )
+        self.assertIn("primary_ip4", str(err))
+        self.assertIn("does not exist", str(err))
+
+    def test_create_raises_netbox_api_error_with_list_details(self):
+        response = self._make_response(
+            400,
+            "Bad Request",
+            "https://netbox.example.com/api/dcim/modules/",
+            json_body=["Module type is not compatible with this bay."],
+        )
+        self.client.session.post = MagicMock(return_value=response)
+
+        with self.assertRaises(NetBoxAPIError) as ctx:
+            self.client.create("dcim/modules", {"device": 6087, "module_type": 427, "module_bay": 1})
+
+        self.assertIn("Module type is not compatible", str(ctx.exception))
+
+    def test_error_falls_back_to_raw_text_when_not_json(self):
+        response = self._make_response(
+            500,
+            "Internal Server Error",
+            "https://netbox.example.com/api/dcim/devices/6087/",
+            text_body="<html>Server Error</html>",
+        )
+        self.client.session.patch = MagicMock(return_value=response)
+
+        with self.assertRaises(NetBoxAPIError) as ctx:
+            self.client.update("dcim/devices", 6087, {"status": "active"})
+
+        self.assertIn("Server Error", str(ctx.exception))
+
+    def test_successful_response_does_not_raise(self):
+        response = self._make_response(
+            200,
+            "OK",
+            "https://netbox.example.com/api/dcim/devices/6087/",
+            json_body={"id": 6087, "status": "active"},
+        )
+        self.client.session.patch = MagicMock(return_value=response)
+
+        result = self.client.update("dcim/devices", 6087, {"status": "active"})
+
+        self.assertEqual(result, {"id": 6087, "status": "active"})
 
 
 if __name__ == "__main__":
