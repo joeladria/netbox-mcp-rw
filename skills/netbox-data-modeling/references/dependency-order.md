@@ -58,7 +58,13 @@ Self-referential. Create top-down (parents first).
 
 - DeviceType (needs: Manufacturer required)
 - ModuleType (needs: Manufacturer required)
-- Component templates (InterfaceTemplate, etc.) are created on DeviceType
+- Component templates are created on DeviceType (or ModuleType, where noted) via this
+  MCP server's `netbox_create_object`/`netbox_bulk_create_objects` tools:
+  `interface-templates`, `console-port-templates`, `console-server-port-templates`,
+  `power-port-templates`, `power-outlet-templates`, `front-port-templates`,
+  `rear-port-templates`, `device-bay-templates` (DeviceType only),
+  `module-bay-templates` (DeviceType only), `inventory-item-templates`.
+  These are branchable — use `branch_schema_id` like other DCIM writes.
 
 ## Tier 7: Clusters & Virtual Infrastructure
 

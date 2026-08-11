@@ -146,6 +146,38 @@ class BranchWriteGuardTest(unittest.TestCase):
             headers={"X-NetBox-Branch": "a1b2c3d4"},
         )
 
+    def test_component_template_write_uses_branch_header(self):
+        # Component templates (e.g. InterfaceTemplate) are branchable DCIM
+        # models, not global/exempt models, so they should behave like any
+        # other branchable object type.
+        server.netbox.create.return_value = {"id": 1}
+
+        result = server.netbox_create_object(
+            "interface-templates",
+            {"device_type": 1, "name": "eth0", "type": "1000base-t"},
+            branch_schema_id="a1b2c3d4",
+        )
+
+        self.assertEqual(result, {"id": 1})
+        server.netbox.create.assert_called_once_with(
+            "dcim/interface-templates",
+            {"device_type": 1, "name": "eth0", "type": "1000base-t"},
+            headers={"X-NetBox-Branch": "a1b2c3d4"},
+        )
+
+    def test_component_template_read_can_use_branch_context(self):
+        server.netbox.get.return_value = []
+
+        server.netbox_get_objects(
+            "interface-templates", {"device_type_id": 5}, branch_schema_id="a1b2c3d4"
+        )
+
+        server.netbox.get.assert_called_once_with(
+            "dcim/interface-templates",
+            params={"device_type_id": 5},
+            headers={"X-NetBox-Branch": "a1b2c3d4"},
+        )
+
     def test_merge_dry_run_does_not_require_confirmation(self):
         server.netbox.create.return_value = {"id": 10}
         ctx = FakeContext()

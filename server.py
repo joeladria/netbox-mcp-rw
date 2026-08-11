@@ -10,29 +10,40 @@ NETBOX_OBJECT_TYPES = {
     "cables": "dcim/cables",
     "cable-bundles": "dcim/cable-bundles",
     "console-ports": "dcim/console-ports", 
+    "console-port-templates": "dcim/console-port-templates",
     "console-server-ports": "dcim/console-server-ports",
+    "console-server-port-templates": "dcim/console-server-port-templates",
     "devices": "dcim/devices",
     "device-bays": "dcim/device-bays",
+    "device-bay-templates": "dcim/device-bay-templates",
     "device-roles": "dcim/device-roles",
     "device-types": "dcim/device-types",
     "front-ports": "dcim/front-ports",
+    "front-port-templates": "dcim/front-port-templates",
     "interfaces": "dcim/interfaces",
+    "interface-templates": "dcim/interface-templates",
     "inventory-items": "dcim/inventory-items",
+    "inventory-item-templates": "dcim/inventory-item-templates",
     "locations": "dcim/locations",
     "mac-addresses": "dcim/mac-addresses",
     "manufacturers": "dcim/manufacturers",
     "modules": "dcim/modules",
     "module-bays": "dcim/module-bays",
+    "module-bay-templates": "dcim/module-bay-templates",
     "module-types": "dcim/module-types",
     "platforms": "dcim/platforms",
     "power-feeds": "dcim/power-feeds",
     "power-outlets": "dcim/power-outlets",
+    "power-outlet-templates": "dcim/power-outlet-templates",
     "power-panels": "dcim/power-panels",
     "power-ports": "dcim/power-ports",
+    "power-port-templates": "dcim/power-port-templates",
     "racks": "dcim/racks",
     "rack-groups": "dcim/rack-groups",
     "rack-reservations": "dcim/rack-reservations",
     "rack-roles": "dcim/rack-roles",
+    "rear-ports": "dcim/rear-ports",
+    "rear-port-templates": "dcim/rear-port-templates",
     "regions": "dcim/regions",
     "sites": "dcim/sites",
     "site-groups": "dcim/site-groups",
@@ -51,6 +62,7 @@ NETBOX_OBJECT_TYPES = {
     "roles": "ipam/roles",
     "route-targets": "ipam/route-targets",
     "services": "ipam/services",
+    "service-templates": "ipam/service-templates",
     "vlans": "ipam/vlans",
     "vlan-groups": "ipam/vlan-groups",
     "vrfs": "ipam/vrfs",
@@ -102,6 +114,7 @@ NETBOX_OBJECT_TYPES = {
     # Extras
     "config-contexts": "extras/config-contexts",
     "config-context-profiles": "extras/config-context-profiles",
+    "config-templates": "extras/config-templates",
     "custom-fields": "extras/custom-fields",
     "custom-field-choice-sets": "extras/custom-field-choice-sets",
     "event-rules": "extras/event-rules",
@@ -221,31 +234,47 @@ def netbox_get_objects(object_type: str, filters: dict, branch_schema_id: str | 
     DCIM (Device and Infrastructure):
     - cables
     - console-ports
-    - console-server-ports  
+    - console-port-templates
+    - console-server-ports
+    - console-server-port-templates
     - devices
     - device-bays
+    - device-bay-templates
     - device-roles
     - device-types
     - front-ports
+    - front-port-templates
     - interfaces
+    - interface-templates
     - inventory-items
+    - inventory-item-templates
     - locations
     - manufacturers
     - modules
     - module-bays
+    - module-bay-templates
     - module-types
     - platforms
     - power-feeds
     - power-outlets
+    - power-outlet-templates
     - power-panels
     - power-ports
+    - power-port-templates
     - racks
     - rack-reservations
     - rack-roles
+    - rear-ports
+    - rear-port-templates
     - regions
     - sites
     - site-groups
     - virtual-chassis
+
+    Component templates (e.g. interface-templates) are defined on a
+    device-type or module-type and are used to auto-generate the
+    corresponding components (e.g. interfaces) when a device or module
+    is instantiated from that type.
     
     IPAM (IP Address Management):
     - asns
@@ -259,6 +288,7 @@ def netbox_get_objects(object_type: str, filters: dict, branch_schema_id: str | 
     - roles
     - route-targets
     - services
+    - service-templates
     - vlans
     - vlan-groups
     - vrfs
@@ -298,6 +328,11 @@ def netbox_get_objects(object_type: str, filters: dict, branch_schema_id: str | 
     - wireless-lans
     - wireless-lan-groups
     - wireless-links
+    
+    Extras:
+    - config-templates
+    - config-contexts
+    - tags
     
     See NetBox API documentation for filtering options for each object type.
     """

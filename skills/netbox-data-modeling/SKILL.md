@@ -121,7 +121,7 @@ Manufacturer → DeviceType (template with component templates)
 DeviceRole + Site + DeviceType → Device (with auto-created components)
 ```
 
-- **DeviceType** defines the hardware template: interface templates, power ports, module bays
+- **DeviceType** defines the hardware template: interface templates, power port templates, module bay templates, etc. (endpoints: `dcim/interface-templates`, `dcim/power-port-templates`, `dcim/module-bay-templates`, and similar `*-templates` endpoints for each component type)
 - Creating a Device auto-creates components from its DeviceType's templates
 - **Modules** extend devices: module types define additional component templates inserted into module bays
 - **DeviceRole** (4.5: hierarchical) — use for config context matching and classification

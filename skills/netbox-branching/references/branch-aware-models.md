@@ -5,7 +5,10 @@
 Most core NetBox operational data models support branching. The exact set depends on plugin configuration and NetBox version — use the [discovery endpoint](#discovery-endpoint) for the authoritative list.
 
 In practice, **most operational data models** are branched:
-- **DCIM**: sites, devices, interfaces, cables, racks, etc.
+- **DCIM**: sites, devices, interfaces, cables, racks, etc. — including component
+  templates (InterfaceTemplate, PowerPortTemplate, DeviceBayTemplate, etc.) defined
+  on DeviceType/ModuleType. Templates are branched independently of the component
+  instances they generate — don't assume "template" implies global/exempt.
 - **IPAM**: prefixes, IP addresses, VLANs, VRFs, etc.
 - **Circuits**: circuits, providers, circuit terminations
 - **Tenancy**: tenants, tenant groups, contacts

@@ -32,12 +32,16 @@ Unlike existing read-only NetBox MCP implementations, this server provides compr
 - devices, device-types, device-roles, manufacturers
 - sites, locations, racks, rack-groups, rack-roles
 - cables, cable-bundles, interfaces, mac-addresses
-- power-ports, console-ports, platforms, regions
+- power-ports, console-ports, rear-ports, front-ports, platforms, regions
 - virtual-chassis, virtual-device-contexts
+- Component templates (defined on device-types/module-types): interface-templates,
+  console-port-templates, console-server-port-templates, power-port-templates,
+  power-outlet-templates, front-port-templates, rear-port-templates,
+  device-bay-templates, module-bay-templates, inventory-item-templates
 
 **IPAM (IP Address Management):**
 - ip-addresses, prefixes, vlans, vrfs
-- asns, aggregates, services
+- asns, aggregates, services, service-templates
 - roles, rirs, route-targets
 
 **Circuits:**
@@ -58,7 +62,7 @@ Unlike existing read-only NetBox MCP implementations, this server provides compr
 - l2vpns, l2vpn-terminations, wireless-lans, wireless-links
 
 **Customization & Operations:**
-- custom-fields, custom-field-choice-sets, config-contexts
+- custom-fields, custom-field-choice-sets, config-contexts, config-templates
 - config-context-profiles, event-rules, tags, webhooks, jobs
 
 **And many more...**
@@ -151,7 +155,7 @@ This server works with any MCP-compatible client. Adjust the command and argumen
 
 ## Branch-First Writes
 
-This server is read-write, but it defaults to safe NetBox Branching workflows. Write tools for branchable models require `branch_schema_id`, which is sent to NetBox as `X-NetBox-Branch`. The value must be the branch `schema_id`, not the branch name or numeric ID.
+This server is read-write, but it defaults to safe NetBox Branching workflows. Write tools for branchable models require `branch_schema_id`, which is sent to NetBox as `X-NetBox-Branch`. The value must be the branch `schema_id`, not the branch name or numeric ID. This includes DCIM component templates (e.g. `interface-templates`, `power-port-templates`) — they are branchable like any other DCIM model, not exempt/global.
 
 To write directly to main, set `NETBOX_ALLOW_MAIN_COMMIT=true`. This is also required for known global/non-branchable models such as custom fields, config contexts, tags, webhooks, event rules, export templates, saved filters, scripts, and jobs. If a global model is written with `branch_schema_id`, the server rejects the request because NetBox Branching does not isolate those models.
 
