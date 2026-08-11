@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import sys
@@ -17,15 +18,50 @@ class FakeFastMCP:
         pass
 
 
+class FakeContext:
+    """Stand-in for mcp.server.fastmcp.Context; tests set .elicit_result directly."""
+
+    def __init__(self, elicit_result=None):
+        self.elicit_result = elicit_result
+        self.elicit_calls = []
+
+    async def elicit(self, message, schema):
+        self.elicit_calls.append((message, schema))
+        return self.elicit_result
+
+
+class FakeAcceptedElicitation:
+    action = "accept"
+
+    def __init__(self, confirm):
+        self.data = types.SimpleNamespace(confirm=confirm)
+
+
+class FakeDeclinedElicitation:
+    action = "decline"
+
+
+class FakeCancelledElicitation:
+    action = "cancel"
+
+
+elicitation_module = types.ModuleType("mcp.server.elicitation")
+elicitation_module.AcceptedElicitation = FakeAcceptedElicitation
+elicitation_module.DeclinedElicitation = FakeDeclinedElicitation
+elicitation_module.CancelledElicitation = FakeCancelledElicitation
+
 fastmcp_module = types.ModuleType("mcp.server.fastmcp")
 fastmcp_module.FastMCP = FakeFastMCP
+fastmcp_module.Context = FakeContext
 server_module = types.ModuleType("mcp.server")
 server_module.fastmcp = fastmcp_module
+server_module.elicitation = elicitation_module
 mcp_module = types.ModuleType("mcp")
 mcp_module.server = server_module
 sys.modules.setdefault("mcp", mcp_module)
 sys.modules.setdefault("mcp.server", server_module)
 sys.modules.setdefault("mcp.server.fastmcp", fastmcp_module)
+sys.modules.setdefault("mcp.server.elicitation", elicitation_module)
 
 import server
 from netbox_client import NetBoxAPIError, NetBoxRestClient
@@ -110,15 +146,109 @@ class BranchWriteGuardTest(unittest.TestCase):
             headers={"X-NetBox-Branch": "a1b2c3d4"},
         )
 
-    def test_merge_defaults_to_dry_run(self):
+    def test_merge_dry_run_does_not_require_confirmation(self):
         server.netbox.create.return_value = {"id": 10}
+        ctx = FakeContext()
 
-        server.netbox_merge_branch(7)
+        asyncio.run(server.netbox_merge_branch(ctx, 7))
 
         server.netbox.create.assert_called_once_with(
             "plugins/branching/branches/7/merge",
             {"commit": False},
         )
+        self.assertEqual(ctx.elicit_calls, [])
+
+    def test_merge_commit_requires_confirmation_and_proceeds_when_confirmed(self):
+        server.netbox.create.return_value = {"id": 10}
+        ctx = FakeContext(elicit_result=FakeAcceptedElicitation(confirm=True))
+
+        asyncio.run(server.netbox_merge_branch(ctx, 7, commit=True))
+
+        self.assertEqual(len(ctx.elicit_calls), 1)
+        server.netbox.create.assert_called_once_with(
+            "plugins/branching/branches/7/merge",
+            {"commit": True},
+        )
+
+    def test_merge_commit_blocked_when_user_declines(self):
+        ctx = FakeContext(elicit_result=FakeDeclinedElicitation())
+
+        with self.assertRaisesRegex(server.ConfirmationRequiredError, "declined"):
+            asyncio.run(server.netbox_merge_branch(ctx, 7, commit=True))
+
+        server.netbox.create.assert_not_called()
+
+    def test_merge_commit_blocked_when_user_cancels(self):
+        ctx = FakeContext(elicit_result=FakeCancelledElicitation())
+
+        with self.assertRaisesRegex(server.ConfirmationRequiredError, "cancelled"):
+            asyncio.run(server.netbox_merge_branch(ctx, 7, commit=True))
+
+        server.netbox.create.assert_not_called()
+
+    def test_merge_commit_blocked_when_confirm_false(self):
+        ctx = FakeContext(elicit_result=FakeAcceptedElicitation(confirm=False))
+
+        with self.assertRaisesRegex(server.ConfirmationRequiredError, "did not confirm"):
+            asyncio.run(server.netbox_merge_branch(ctx, 7, commit=True))
+
+        server.netbox.create.assert_not_called()
+
+    def test_revert_dry_run_does_not_require_confirmation(self):
+        server.netbox.create.return_value = {"id": 12}
+        ctx = FakeContext()
+
+        asyncio.run(server.netbox_revert_branch(ctx, 7))
+
+        server.netbox.create.assert_called_once_with(
+            "plugins/branching/branches/7/revert",
+            {"commit": False},
+        )
+        self.assertEqual(ctx.elicit_calls, [])
+
+    def test_revert_commit_requires_confirmation(self):
+        ctx = FakeContext(elicit_result=FakeDeclinedElicitation())
+
+        with self.assertRaisesRegex(server.ConfirmationRequiredError, "declined"):
+            asyncio.run(server.netbox_revert_branch(ctx, 7, commit=True))
+
+        server.netbox.create.assert_not_called()
+
+    def test_archive_requires_confirmation(self):
+        server.netbox.create.return_value = {"id": 13}
+        ctx = FakeContext(elicit_result=FakeAcceptedElicitation(confirm=True))
+
+        asyncio.run(server.netbox_archive_branch(ctx, 7))
+
+        server.netbox.create.assert_called_once_with(
+            "plugins/branching/branches/7/archive",
+            {},
+        )
+
+    def test_archive_blocked_without_confirmation(self):
+        ctx = FakeContext(elicit_result=FakeDeclinedElicitation())
+
+        with self.assertRaisesRegex(server.ConfirmationRequiredError, "declined"):
+            asyncio.run(server.netbox_archive_branch(ctx, 7))
+
+        server.netbox.create.assert_not_called()
+
+    def test_delete_branch_requires_confirmation(self):
+        server.netbox.delete.return_value = True
+        ctx = FakeContext(elicit_result=FakeAcceptedElicitation(confirm=True))
+
+        result = asyncio.run(server.netbox_delete_branch(ctx, 7))
+
+        self.assertEqual(result, {"success": True, "message": "Deleted branch 7"})
+        server.netbox.delete.assert_called_once_with("plugins/branching/branches", 7)
+
+    def test_delete_branch_blocked_without_confirmation(self):
+        ctx = FakeContext(elicit_result=FakeDeclinedElicitation())
+
+        with self.assertRaisesRegex(server.ConfirmationRequiredError, "declined"):
+            asyncio.run(server.netbox_delete_branch(ctx, 7))
+
+        server.netbox.delete.assert_not_called()
 
     def test_sync_can_acknowledge_conflicts(self):
         server.netbox.create.return_value = {"id": 11}

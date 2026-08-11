@@ -1,5 +1,7 @@
-from mcp.server.fastmcp import FastMCP
+from mcp.server.elicitation import AcceptedElicitation, CancelledElicitation, DeclinedElicitation
+from mcp.server.fastmcp import Context, FastMCP
 from netbox_client import NetBoxRestClient
+from pydantic import BaseModel
 import os
 
 # Mapping of simple object names to API endpoints
@@ -132,6 +134,42 @@ GLOBAL_OBJECT_TYPES = {
 
 def _allow_main_commit() -> bool:
     return os.getenv("NETBOX_ALLOW_MAIN_COMMIT", "").lower() in {"1", "true", "yes", "on"}
+
+
+class ConfirmAction(BaseModel):
+    """Schema used to elicit explicit user confirmation for a destructive branch action."""
+
+    confirm: bool
+
+
+class ConfirmationRequiredError(RuntimeError):
+    """Raised when a destructive branch action is not confirmed by the user."""
+
+
+async def _require_confirmation(ctx: Context, message: str) -> None:
+    """
+    Mandatorily prompt the connected client/user for confirmation via MCP elicitation
+    before proceeding with a destructive/irreversible branch operation.
+
+    Raises ConfirmationRequiredError unless the user explicitly accepts with confirm=True.
+    """
+    if ctx is None:
+        raise ConfirmationRequiredError(
+            "Confirmation is required for this action but no request context is available."
+        )
+
+    result = await ctx.elicit(message=message, schema=ConfirmAction)
+
+    if isinstance(result, AcceptedElicitation):
+        if not result.data.confirm:
+            raise ConfirmationRequiredError("User did not confirm this action (confirm=false). Aborting.")
+        return
+    if isinstance(result, DeclinedElicitation):
+        raise ConfirmationRequiredError("User declined to confirm this action. Aborting.")
+    if isinstance(result, CancelledElicitation):
+        raise ConfirmationRequiredError("User cancelled the confirmation prompt. Aborting.")
+
+    raise ConfirmationRequiredError("Unexpected confirmation result. Aborting.")
 
 
 def _validate_object_type(object_type: str) -> str:
@@ -553,13 +591,24 @@ def netbox_sync_branch(branch_id: int, commit: bool = False, acknowledge_conflic
 
 
 @mcp.tool()
-def netbox_merge_branch(
+async def netbox_merge_branch(
+    ctx: Context,
     branch_id: int,
     commit: bool = False,
     acknowledge_conflicts: bool = False,
     strategy: str | None = None,
 ):
-    """Merge a branch to main. Defaults to dry-run with commit=false."""
+    """Merge a branch to main. Defaults to dry-run with commit=false.
+
+    When commit=true, this mutates main and requires interactive user
+    confirmation via MCP elicitation before proceeding.
+    """
+    if commit:
+        await _require_confirmation(
+            ctx,
+            f"Merge branch {branch_id} into main? This will commit the branch's changes to main "
+            "and cannot be undone without a separate revert. Confirm to proceed.",
+        )
     data = {"commit": commit}
     if acknowledge_conflicts:
         data["acknowledge_conflicts"] = True
@@ -569,20 +618,48 @@ def netbox_merge_branch(
 
 
 @mcp.tool()
-def netbox_revert_branch(branch_id: int, commit: bool = False):
-    """Revert a previously merged branch. Defaults to dry-run with commit=false."""
+async def netbox_revert_branch(ctx: Context, branch_id: int, commit: bool = False):
+    """Revert a previously merged branch. Defaults to dry-run with commit=false.
+
+    When commit=true, this mutates main and requires interactive user
+    confirmation via MCP elicitation before proceeding.
+    """
+    if commit:
+        await _require_confirmation(
+            ctx,
+            f"Revert previously merged branch {branch_id}? This will undo its changes on main "
+            "and cannot be undone without a separate action. Confirm to proceed.",
+        )
     return netbox.create(f"plugins/branching/branches/{branch_id}/revert", {"commit": commit})
 
 
 @mcp.tool()
-def netbox_archive_branch(branch_id: int):
-    """Archive a ready or merged branch."""
+async def netbox_archive_branch(ctx: Context, branch_id: int):
+    """Archive a ready or merged branch.
+
+    Requires interactive user confirmation via MCP elicitation before proceeding.
+    """
+    await _require_confirmation(
+        ctx,
+        f"Archive branch {branch_id}? Archived branches can no longer be modified or merged. "
+        "Confirm to proceed.",
+    )
     return netbox.create(f"plugins/branching/branches/{branch_id}/archive", {})
 
 
 @mcp.tool()
-def netbox_delete_branch(branch_id: int):
-    """Delete a branch record and drop its schema."""
+async def netbox_delete_branch(ctx: Context, branch_id: int):
+    """Delete a branch record and drop its schema.
+
+    WARNING: This permanently deletes the branch and its schema and cannot be
+    undone. Requires interactive user confirmation via MCP elicitation before
+    proceeding.
+    """
+    await _require_confirmation(
+        ctx,
+        f"Permanently delete branch {branch_id} and drop its schema? This cannot be undone. "
+        "Confirm to proceed.",
+    )
     success = netbox.delete("plugins/branching/branches", branch_id)
     return {"success": success, "message": f"Deleted branch {branch_id}" if success else f"Failed to delete branch {branch_id}"}
 

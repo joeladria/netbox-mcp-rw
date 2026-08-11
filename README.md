@@ -177,10 +177,10 @@ Branch lifecycle operations are explicit tools. Sync, merge, and revert default 
 - `netbox_get_branch_events` - Review branch lifecycle events
 - `netbox_get_branchable_models` - Discover models configured as branchable
 - `netbox_sync_branch` - Dry-run or commit a main-to-branch sync
-- `netbox_merge_branch` - Dry-run or commit a branch-to-main merge
-- `netbox_revert_branch` - Dry-run or commit a merged branch revert
-- `netbox_archive_branch` - Archive a branch
-- `netbox_delete_branch` - Delete a branch and drop its schema
+- `netbox_merge_branch` - Dry-run or commit a branch-to-main merge (commit=true requires interactive user confirmation)
+- `netbox_revert_branch` - Dry-run or commit a merged branch revert (commit=true requires interactive user confirmation)
+- `netbox_archive_branch` - Archive a branch (requires interactive user confirmation)
+- `netbox_delete_branch` - Delete a branch and drop its schema (requires interactive user confirmation)
 
 ### Audit & History
 - `netbox_get_changelogs` - Access change history and audit trails
@@ -191,6 +191,8 @@ Branch lifecycle operations are explicit tools. Sync, merge, and revert default 
 - SSL/TLS verification enabled by default
 - Proper error handling and validation
 - Audit trail preservation through NetBox's built-in changelog
+- Destructive/irreversible branch operations (merge commit, revert commit, archive, delete)
+  mandatorily prompt for interactive user confirmation via MCP elicitation before executing
 
 ## Requirements
 
