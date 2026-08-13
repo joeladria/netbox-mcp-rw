@@ -192,6 +192,40 @@ def _validate_object_type(object_type: str) -> str:
     return NETBOX_OBJECT_TYPES[object_type]
 
 
+_content_type_cache: dict[str, str] = {}
+
+
+def _resolve_content_type(object_type: str) -> str:
+    """
+    Resolve a simplified object_type (e.g. "devices") to the NetBox
+    content-type string (e.g. "dcim.device") used to filter
+    extras/custom-fields by object_type.
+
+    Uses NetBox's /api/core/object-types/ endpoint, which exposes
+    rest_api_endpoint (added in NetBox 4.4), and caches results in-process.
+    """
+    endpoint = _validate_object_type(object_type)
+    if endpoint in _content_type_cache:
+        return _content_type_cache[endpoint]
+
+    app_label, _, api_segment = endpoint.partition("/")
+    object_types = netbox.get("core/object-types", params={"app_label": app_label})
+    for ot in object_types:
+        rest_endpoint = (ot.get("rest_api_endpoint") or "").rstrip("/")
+        if rest_endpoint.endswith(f"/{app_label}/{api_segment}"):
+            content_type = f"{ot['app_label']}.{ot['model']}"
+            _content_type_cache[endpoint] = content_type
+            return content_type
+
+    raise ValueError(
+        f"Could not resolve NetBox content type for object_type '{object_type}'. "
+        "Your NetBox version may not expose 'rest_api_endpoint' on "
+        "/api/core/object-types/ (added in NetBox 4.4). As a workaround, call "
+        "netbox_get_objects('custom-fields', {'object_type': '<app_label>.<model>'}) "
+        "directly with the appropriate content type string."
+    )
+
+
 def _branch_headers(branch_schema_id: str | None) -> dict | None:
     if branch_schema_id:
         return {"X-NetBox-Branch": branch_schema_id}
@@ -405,6 +439,45 @@ def netbox_get_changelogs(filters: dict):
     
     # Make API call
     return netbox.get(endpoint, params=filters)
+
+@mcp.tool()
+def netbox_get_custom_fields(object_type: str):
+    """
+    Discover custom field definitions applicable to a NetBox object type.
+
+    Use this before creating/updating objects to learn which custom fields
+    are available, their data type, whether they're required, their default
+    value, and (for select/multi-select fields) their choice set.
+
+    Args:
+        object_type: String representing the NetBox object type (e.g. "devices", "sites")
+
+    Returns:
+        List of custom field definition objects. Each includes (among others):
+        - name: The key to use inside the "custom_fields" dict
+        - type: The field's data type (text, integer, boolean, select, etc.)
+        - label, description, required, default
+        - choice_set: For select/multiselect fields, the associated choice set
+
+    Example:
+    netbox_get_custom_fields("devices")
+
+    Once you know a field's name, set its value via netbox_create_object or
+    netbox_update_object using the "custom_fields" dict, e.g.:
+    netbox_create_object("devices", {
+        "name": "new-device",
+        ...
+        "custom_fields": {"site_code": "NYC1"}
+    })
+
+    Custom field values can also be filtered on via netbox_get_objects by
+    prefixing the field name with "cf_", e.g. filters={"cf_site_code": "NYC1"}.
+
+    Note: Custom field definitions are a global/non-branchable NetBox model,
+    so this always reads from main regardless of branch context.
+    """
+    content_type = _resolve_content_type(object_type)
+    return netbox.get("extras/custom-fields", params={"object_type": content_type})
 
 @mcp.tool()
 def netbox_create_object(object_type: str, data: dict, branch_schema_id: str | None = None):

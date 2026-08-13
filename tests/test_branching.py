@@ -293,6 +293,93 @@ class BranchWriteGuardTest(unittest.TestCase):
         )
 
 
+class CustomFieldDiscoveryTest(unittest.TestCase):
+    def setUp(self):
+        self.old_netbox = server.netbox
+        server.netbox = MagicMock()
+        server._content_type_cache.clear()
+
+    def tearDown(self):
+        server.netbox = self.old_netbox
+        server._content_type_cache.clear()
+
+    def test_resolve_content_type_matches_object_type_endpoint(self):
+        server.netbox.get.return_value = [
+            {
+                "app_label": "dcim",
+                "model": "site",
+                "rest_api_endpoint": "/api/dcim/sites/",
+            },
+            {
+                "app_label": "dcim",
+                "model": "device",
+                "rest_api_endpoint": "/api/dcim/devices/",
+            },
+        ]
+
+        result = server._resolve_content_type("devices")
+
+        self.assertEqual(result, "dcim.device")
+        server.netbox.get.assert_called_once_with(
+            "core/object-types", params={"app_label": "dcim"}
+        )
+
+    def test_resolve_content_type_caches_result(self):
+        server.netbox.get.return_value = [
+            {
+                "app_label": "dcim",
+                "model": "device",
+                "rest_api_endpoint": "/api/dcim/devices/",
+            },
+        ]
+
+        first = server._resolve_content_type("devices")
+        second = server._resolve_content_type("devices")
+
+        self.assertEqual(first, "dcim.device")
+        self.assertEqual(second, "dcim.device")
+        server.netbox.get.assert_called_once()
+
+    def test_resolve_content_type_raises_when_no_match(self):
+        server.netbox.get.return_value = [
+            {
+                "app_label": "dcim",
+                "model": "site",
+                "rest_api_endpoint": "/api/dcim/sites/",
+            },
+        ]
+
+        with self.assertRaisesRegex(ValueError, "Could not resolve NetBox content type"):
+            server._resolve_content_type("devices")
+
+    def test_resolve_content_type_rejects_invalid_object_type(self):
+        with self.assertRaisesRegex(ValueError, "Invalid object_type"):
+            server._resolve_content_type("not-a-real-type")
+        server.netbox.get.assert_not_called()
+
+    def test_get_custom_fields_filters_by_resolved_content_type(self):
+        server.netbox.get.side_effect = [
+            [
+                {
+                    "app_label": "dcim",
+                    "model": "device",
+                    "rest_api_endpoint": "/api/dcim/devices/",
+                }
+            ],
+            [{"id": 1, "name": "site_code", "type": {"value": "text"}}],
+        ]
+
+        result = server.netbox_get_custom_fields("devices")
+
+        self.assertEqual(result, [{"id": 1, "name": "site_code", "type": {"value": "text"}}])
+        server.netbox.get.assert_any_call(
+            "core/object-types", params={"app_label": "dcim"}
+        )
+        server.netbox.get.assert_any_call(
+            "extras/custom-fields", params={"object_type": "dcim.device"}
+        )
+
+
 class NetBoxRestClientHeadersTest(unittest.TestCase):
     def test_create_passes_per_request_headers(self):
         client = NetBoxRestClient("https://netbox.example.com", "token")

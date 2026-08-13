@@ -136,6 +136,7 @@ This server works with any MCP-compatible client. Adjust the command and argumen
 "Show me all active devices in the NYC datacenter"
 "List available IP addresses in the 10.0.1.0/24 subnet"
 "What changes were made to devices last week?"
+"What custom fields are defined on devices?"
 ```
 
 ### Writing Data
@@ -189,6 +190,16 @@ Branch lifecycle operations are explicit tools. Sync, merge, and revert default 
 ### Audit & History
 - `netbox_get_changelogs` - Access change history and audit trails
 
+### Custom Fields
+- `netbox_get_custom_fields` - Discover custom field definitions (name, type, required, default, choice set) applicable to a given object type
+
+Custom field *values* don't need a dedicated tool — they're set by including a
+`custom_fields` key in the `data` dict passed to `netbox_create_object` /
+`netbox_update_object` (e.g. `{"custom_fields": {"site_code": "NYC1"}}`), and
+filtered on via `netbox_get_objects` by prefixing the field name with `cf_`
+(e.g. `filters={"cf_site_code": "NYC1"}`). Use `netbox_get_custom_fields` first
+to discover which field names and types are valid for an object type.
+
 ## Security Features
 
 - API tokens stored in environment variables (never hardcoded)
@@ -203,6 +214,10 @@ Branch lifecycle operations are explicit tools. Sync, merge, and revert default 
 - Python 3.13+
 - NetBox instance with API access
 - Valid NetBox API token with appropriate permissions
+- NetBox 4.4+ is required for `netbox_get_custom_fields` (it relies on the
+  `rest_api_endpoint` field on `/api/core/object-types/`). On older versions,
+  call `netbox_get_objects("custom-fields", {"object_type": "<app_label>.<model>"})`
+  directly instead.
 
 ## Contributing
 
@@ -220,7 +235,8 @@ This is the first read-write NetBox MCP server - help us make it better:
 - [ ] Implement caching for better performance
 - [ ] Add async support
 - [ ] Create comprehensive test suite
-- [ ] Add support for custom fields and plugins
+- [x] Add support for custom fields (definition discovery, plus values/filtering via existing generic tools)
+- [ ] Add support for plugins
 
 ## License
 
