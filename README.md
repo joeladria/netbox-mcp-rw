@@ -30,22 +30,40 @@ Unlike existing read-only NetBox MCP implementations, this server provides compr
 
 **DCIM (Device and Infrastructure):**
 - devices, device-types, device-roles, manufacturers
-- sites, locations, racks, rack-roles
-- cables, interfaces, power-ports, console-ports
-- platforms, regions, virtual-chassis
+- sites, locations, racks, rack-groups, rack-roles
+- cables, cable-bundles, interfaces, mac-addresses
+- power-ports, console-ports, rear-ports, front-ports, platforms, regions
+- virtual-chassis, virtual-device-contexts
+- Component templates (defined on device-types/module-types): interface-templates,
+  console-port-templates, console-server-port-templates, power-port-templates,
+  power-outlet-templates, front-port-templates, rear-port-templates,
+  device-bay-templates, module-bay-templates, inventory-item-templates
 
 **IPAM (IP Address Management):**
 - ip-addresses, prefixes, vlans, vrfs
-- asns, aggregates, services
+- asns, aggregates, services, service-templates
 - roles, rirs, route-targets
 
 **Circuits:**
 - circuits, circuit-types, providers
-- circuit-terminations, provider-networks
+- circuit-groups, circuit-terminations, provider-accounts
+- provider-networks, virtual-circuits
 
 **Virtualization:**
 - virtual-machines, clusters, cluster-groups
-- cluster-types, vm-interfaces
+- cluster-types, virtual-disks, virtual-machine-types, vm-interfaces
+
+**Tenancy:**
+- tenants, tenant-groups, contacts, contact-groups
+- contact-roles, contact-assignments
+
+**VPN & Wireless:**
+- tunnels, tunnel-groups, tunnel-terminations
+- l2vpns, l2vpn-terminations, wireless-lans, wireless-links
+
+**Customization & Operations:**
+- custom-fields, custom-field-choice-sets, config-contexts, config-templates
+- config-context-profiles, event-rules, tags, webhooks, jobs
 
 **And many more...**
 
@@ -70,6 +88,10 @@ pip install -e .
 ```bash
 export NETBOX_URL="https://your-netbox-instance.com/"
 export NETBOX_TOKEN="your-api-token"
+
+# Optional: allow direct writes to main/global NetBox data.
+# By default, writes to branchable models require a branch_schema_id.
+export NETBOX_ALLOW_MAIN_COMMIT="false"
 ```
 
 4. Test the server:
@@ -114,37 +136,69 @@ This server works with any MCP-compatible client. Adjust the command and argumen
 "Show me all active devices in the NYC datacenter"
 "List available IP addresses in the 10.0.1.0/24 subnet"
 "What changes were made to devices last week?"
+"What custom fields are defined on devices?"
 ```
 
 ### Writing Data
 ```
-"Create a new server called 'web-01' in rack R42 at site NYC-DC1"
-"Add IP address 192.168.1.100/24 to device 'firewall-01'"
-"Update device 'switch-01' status to maintenance mode"
-"Create a new VLAN 100 named 'DMZ' at site headquarters"
+"Create a branch for adding the new NYC rack"
+"Create a new server called 'web-01' in rack R42 at site NYC-DC1 on branch a1b2c3d4"
+"Add IP address 192.168.1.100/24 to device 'firewall-01' on branch a1b2c3d4"
+"Update device 'switch-01' status to maintenance mode on branch a1b2c3d4"
 ```
 
 ### Bulk Operations
 ```
-"Create 10 new servers with names web-01 through web-10"
-"Update all Cisco devices to set the platform to 'ios'"
-"Delete all IP addresses in the decommissioned subnet"
+"Create 10 new servers with names web-01 through web-10 on branch a1b2c3d4"
+"Update all Cisco devices to set the platform to 'ios' on branch a1b2c3d4"
+"Delete all IP addresses in the decommissioned subnet on branch a1b2c3d4"
 ```
+
+## Branch-First Writes
+
+This server is read-write, but it defaults to safe NetBox Branching workflows. Write tools for branchable models require `branch_schema_id`, which is sent to NetBox as `X-NetBox-Branch`. The value must be the branch `schema_id`, not the branch name or numeric ID. This includes DCIM component templates (e.g. `interface-templates`, `power-port-templates`) — they are branchable like any other DCIM model, not exempt/global.
+
+To write directly to main, set `NETBOX_ALLOW_MAIN_COMMIT=true`. This is also required for known global/non-branchable models such as custom fields, config contexts, tags, webhooks, event rules, export templates, saved filters, scripts, and jobs. If a global model is written with `branch_schema_id`, the server rejects the request because NetBox Branching does not isolate those models.
+
+Branch lifecycle operations are explicit tools. Sync, merge, and revert default to `commit=false` so an LLM can dry-run and negotiate committing changes in the conversation.
 
 ## Available Tools
 
 ### Device Management
-- `netbox_get_objects` - List/filter any object type
-- `netbox_get_object_by_id` - Get specific object details
-- `netbox_create_object` - Create new objects
-- `netbox_update_object` - Update existing objects
-- `netbox_delete_object` - Delete objects
-- `netbox_bulk_create_objects` - Bulk create operations
-- `netbox_bulk_update_objects` - Bulk update operations
-- `netbox_bulk_delete_objects` - Bulk delete operations
+- `netbox_get_objects` - List/filter any object type, optionally in branch context
+- `netbox_get_object_by_id` - Get specific object details, optionally in branch context
+- `netbox_create_object` - Create new objects in a branch unless main commits are explicitly allowed
+- `netbox_update_object` - Update existing objects in a branch unless main commits are explicitly allowed
+- `netbox_delete_object` - Delete objects in a branch unless main commits are explicitly allowed
+- `netbox_bulk_create_objects` - Bulk create operations in a branch unless main commits are explicitly allowed
+- `netbox_bulk_update_objects` - Bulk update operations in a branch unless main commits are explicitly allowed
+- `netbox_bulk_delete_objects` - Bulk delete operations in a branch unless main commits are explicitly allowed
+
+### Branching
+- `netbox_list_branches` - List NetBox Branching branches
+- `netbox_get_branch` - Get branch details by numeric ID
+- `netbox_create_branch` - Create a new branch and return its `schema_id`
+- `netbox_get_branch_changes` - Review ChangeDiff records for a branch
+- `netbox_get_branch_events` - Review branch lifecycle events
+- `netbox_get_branchable_models` - Discover models configured as branchable
+- `netbox_sync_branch` - Dry-run or commit a main-to-branch sync
+- `netbox_merge_branch` - Dry-run or commit a branch-to-main merge (commit=true requires interactive user confirmation)
+- `netbox_revert_branch` - Dry-run or commit a merged branch revert (commit=true requires interactive user confirmation)
+- `netbox_archive_branch` - Archive a branch (requires interactive user confirmation)
+- `netbox_delete_branch` - Delete a branch and drop its schema (requires interactive user confirmation)
 
 ### Audit & History
 - `netbox_get_changelogs` - Access change history and audit trails
+
+### Custom Fields
+- `netbox_get_custom_fields` - Discover custom field definitions (name, type, required, default, choice set) applicable to a given object type
+
+Custom field *values* don't need a dedicated tool — they're set by including a
+`custom_fields` key in the `data` dict passed to `netbox_create_object` /
+`netbox_update_object` (e.g. `{"custom_fields": {"site_code": "NYC1"}}`), and
+filtered on via `netbox_get_objects` by prefixing the field name with `cf_`
+(e.g. `filters={"cf_site_code": "NYC1"}`). Use `netbox_get_custom_fields` first
+to discover which field names and types are valid for an object type.
 
 ## Security Features
 
@@ -152,12 +206,18 @@ This server works with any MCP-compatible client. Adjust the command and argumen
 - SSL/TLS verification enabled by default
 - Proper error handling and validation
 - Audit trail preservation through NetBox's built-in changelog
+- Destructive/irreversible branch operations (merge commit, revert commit, archive, delete)
+  mandatorily prompt for interactive user confirmation via MCP elicitation before executing
 
 ## Requirements
 
 - Python 3.13+
 - NetBox instance with API access
 - Valid NetBox API token with appropriate permissions
+- NetBox 4.4+ is required for `netbox_get_custom_fields` (it relies on the
+  `rest_api_endpoint` field on `/api/core/object-types/`). On older versions,
+  call `netbox_get_objects("custom-fields", {"object_type": "<app_label>.<model>"})`
+  directly instead.
 
 ## Contributing
 
@@ -175,7 +235,8 @@ This is the first read-write NetBox MCP server - help us make it better:
 - [ ] Implement caching for better performance
 - [ ] Add async support
 - [ ] Create comprehensive test suite
-- [ ] Add support for custom fields and plugins
+- [x] Add support for custom fields (definition discovery, plus values/filtering via existing generic tools)
+- [ ] Add support for plugins
 
 ## License
 

@@ -1,7 +1,7 @@
 [project]
 name = "netbox-mcp-server"
 version = "0.1.0"
-description = "A read-only MCP server for NetBox"
+description = "A read-write MCP server for NetBox"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
