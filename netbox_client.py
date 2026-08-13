@@ -127,12 +127,15 @@ class NetBoxClientBase(abc.ABC):
     @abc.abstractmethod
     def bulk_create(self, endpoint: str, data: List[Dict[str, Any]], headers: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
-        Create multiple objects in NetBox.
-        
+        Create multiple objects in NetBox in a single request.
+
+        The operation is all-or-none: if any item fails validation, no
+        objects are created.
+
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             data: List of object data to create
-            
+
         Returns:
             List of created objects as dicts
         """
@@ -141,12 +144,19 @@ class NetBoxClientBase(abc.ABC):
     @abc.abstractmethod
     def bulk_update(self, endpoint: str, data: List[Dict[str, Any]], headers: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
-        Update multiple objects in NetBox.
-        
+        Update multiple objects in NetBox in a single request.
+
+        Each item in ``data`` MUST include an ``id`` field identifying the
+        target object; the remaining keys are the attributes to change.
+        Attributes need not be identical across items.
+
+        The operation is all-or-none: if any item fails to update, no
+        objects are modified.
+
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
-            data: List of object data to update (must include ID)
-            
+            data: List of object data to update; each item must include "id"
+
         Returns:
             List of updated objects as dicts
         """
@@ -155,12 +165,15 @@ class NetBoxClientBase(abc.ABC):
     @abc.abstractmethod
     def bulk_delete(self, endpoint: str, ids: List[int], headers: Optional[Dict[str, str]] = None) -> bool:
         """
-        Delete multiple objects from NetBox.
-        
+        Delete multiple objects from NetBox in a single request.
+
+        The operation is all-or-none: if any object cannot be deleted
+        (e.g. due to a dependency from a related object), none are removed.
+
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             ids: List of IDs to delete
-            
+
         Returns:
             True if deletion was successful, False otherwise
         """
@@ -324,18 +337,26 @@ class NetBoxRestClient(NetBoxClientBase):
     def bulk_create(self, endpoint: str, data: List[Dict[str, Any]], headers: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
         Create multiple objects in NetBox via the REST API.
-        
+
+        Issues a single ``POST`` to the model's *list* endpoint (e.g.
+        ``/api/dcim/sites/``) with a JSON array of new objects. NetBox does
+        not expose a ``/bulk/`` sub-endpoint; bulk semantics are inferred
+        from the array-shaped payload on the list endpoint.
+
+        The operation is all-or-none: if NetBox rejects any item (e.g. due
+        to a validation error), no objects are created.
+
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             data: List of object data to create
-            
+
         Returns:
             List of created objects as dicts
-            
+
         Raises:
-            requests.HTTPError: If the request fails
+            NetBoxAPIError: If the request fails (with response body details)
         """
-        url = f"{self._build_url(endpoint)}bulk/"
+        url = self._build_url(endpoint)
         response = self.session.post(url, json=data, headers=headers, verify=self.verify_ssl)
         self._handle_response(response)
         return response.json()
@@ -343,18 +364,28 @@ class NetBoxRestClient(NetBoxClientBase):
     def bulk_update(self, endpoint: str, data: List[Dict[str, Any]], headers: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
         """
         Update multiple objects in NetBox via the REST API.
-        
+
+        Issues a single ``PATCH`` to the model's *list* endpoint (e.g.
+        ``/api/dcim/sites/``) with a JSON array of dicts. Each dict MUST
+        include an ``id`` field identifying the object to update; the
+        remaining keys are the attributes to change. Attributes need not
+        be identical across items.
+
+        The operation is all-or-none: if NetBox fails to update any item
+        (e.g. due to a validation error), the entire request is aborted
+        and no objects are modified.
+
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
-            data: List of object data to update (must include ID)
-            
+            data: List of object data to update; each item must include "id"
+
         Returns:
             List of updated objects as dicts
-            
+
         Raises:
-            requests.HTTPError: If the request fails
+            NetBoxAPIError: If the request fails (with response body details)
         """
-        url = f"{self._build_url(endpoint)}bulk/"
+        url = self._build_url(endpoint)
         response = self.session.patch(url, json=data, headers=headers, verify=self.verify_ssl)
         self._handle_response(response)
         return response.json()
@@ -362,18 +393,26 @@ class NetBoxRestClient(NetBoxClientBase):
     def bulk_delete(self, endpoint: str, ids: List[int], headers: Optional[Dict[str, str]] = None) -> bool:
         """
         Delete multiple objects from NetBox via the REST API.
-        
+
+        Issues a single ``DELETE`` to the model's *list* endpoint (e.g.
+        ``/api/dcim/sites/``) with a JSON array of ``{"id": <pk>}`` dicts.
+        The IDs supplied are converted to that payload shape internally.
+
+        The operation is all-or-none: if NetBox fails to delete any item
+        (e.g. due to a dependency from a related object), the entire
+        request is aborted and no objects are removed.
+
         Args:
             endpoint: The API endpoint (e.g., 'dcim/sites', 'ipam/prefixes')
             ids: List of IDs to delete
-            
+
         Returns:
-            True if deletion was successful, False otherwise
-            
+            True if deletion was successful (HTTP 204), False otherwise
+
         Raises:
-            requests.HTTPError: If the request fails
+            NetBoxAPIError: If the request fails (with response body details)
         """
-        url = f"{self._build_url(endpoint)}bulk/"
+        url = self._build_url(endpoint)
         data = [{"id": id} for id in ids]
         response = self.session.delete(url, json=data, headers=headers, verify=self.verify_ssl)
         self._handle_response(response)
